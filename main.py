@@ -21,12 +21,13 @@ class LRUchain:
         self.length = 0
     
     def __repr__(self):
-        res = []
+        res = ""
         curr = self.dStart.next
         while curr!=self.dEnd:
-            res.append(f'{curr.key}:{curr.val}')
+            exp = f"{curr.expiry:.2f}" if curr.expiry is not None else "None"
+            res += f'{curr.key}:{curr.val} (exp={exp}),\n'
             curr = curr.next
-        return '[' + ', '.join(res) + ']'
+        return '\n[\n' + res + ']\n'
 
     def isExpired(self,exp):
         return exp is not None and time.monotonic() >= exp
@@ -57,13 +58,13 @@ class LRUchain:
     
     def removeLRU(self):
         if self.length == 0:
-            return
+            return None
         lru = self.dEnd.prev
         self.removeNode(lru)
         return lru
     
     def bringForward(self,node):
-        if node.prev != self.dStart and node != self.dStart.next:
+        if node.prev != self.dStart:
             self.removeNode(node)
             self.addToFront(node)
 
@@ -86,12 +87,12 @@ class LRUcache:
 
     def _remove_node(self,node):
         self.chain.removeNode(node)
-        del self.hashmap[node.key]
+        self.hashmap.pop(node.key, None)
 
     def _remove_lru(self):
         lru = self.chain.removeLRU()
         if lru:
-            del self.hashmap[lru.key]
+            self.hashmap.pop(lru.key, None)
             
     def _create_node(self,key,val):
         node = LRUnode(key,val)
@@ -147,12 +148,11 @@ class LRUcache:
         
         node = self._create_node(key,val)
         
-        if self.chain.length < self.capacity:
-            self._insert_node(node)
-            return
-
         self._cleanup_expired_back()
-        self._evict_if_needed()
+
+        if self.chain.length >= self.capacity:
+            self._evict_if_needed()
+
         self._insert_node(node)
     
     def stats(self):
